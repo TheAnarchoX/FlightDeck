@@ -3,6 +3,7 @@ import { ParticleEmitter } from './ParticleEmitter.js';
 import { CONFIG }          from './config.js';
 
 const CFG = CONFIG.ROCKET;
+const ROCKET_NAME = 'FALCON9';
 
 // ── Rocket (Falcon-9 Block-5 inspired) ───────────────────────────────────────
 export class Rocket {
@@ -156,7 +157,7 @@ export class Rocket {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const chars = 'FALCON9'.split('');
+    const chars = ROCKET_NAME.split('');
     chars.forEach((ch, i) => {
       ctx.fillText(ch, c.width / 2, 120 + i * 104);
     });
