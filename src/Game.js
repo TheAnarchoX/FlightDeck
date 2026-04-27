@@ -92,6 +92,7 @@ export class Game {
     this.physics.reset();
     this.rocket.reset();
     this.rocket.setOnLaunchpad(this.launchpad.getRocketMountPosition());
+    this.launchpad.resetEffects();
     this.camera.setView('PAD');
     this.hud.reset();
 
@@ -120,6 +121,7 @@ export class Game {
     this.state = STATE.FLIGHT;
     this.physics.ignite();
     this.rocket.igniteEngines();
+    this.launchpad.triggerWaterDeluge();
     this.camera.setView('LAUNCH');
     this.hud.logEvent('MAIN ENGINE START', 'ok');
     this.hud.logEvent('LIFTOFF! WE HAVE LIFTOFF!', 'ok');
@@ -198,6 +200,7 @@ export class Game {
   // ── Variable-rate visual/camera update ───────────────────────────────────
   _variableUpdate(dt, physState) {
     this.rocket.update(dt, physState);
+    this.launchpad.update(dt);
     this.world.update(dt, physState.altitude);
     this.camera.update(dt, physState);
     this.hud.update(dt, physState, this.state, this.missionTime);

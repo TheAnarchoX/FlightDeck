@@ -6,15 +6,29 @@ export class Launchpad {
     this.scene = scene;
     this.group = new THREE.Group();
     this._mountY = 9; // world Y where rocket base sits
+    this._deluge = null;
   }
 
   init() {
     this._buildAll();
+    this._buildWaterDeluge();
     this.scene.add(this.group);
   }
 
   getRocketMountPosition() {
     return new THREE.Vector3(0, this._mountY, 0);
+  }
+
+  triggerWaterDeluge() {
+    if (this._deluge) this._deluge.burst();
+  }
+
+  update(dt) {
+    if (this._deluge) this._deluge.update(dt);
+  }
+
+  resetEffects() {
+    if (this._deluge) this._deluge.reset();
   }
 
   // ── Materials ─────────────────────────────────────────────────────────────
@@ -105,5 +119,134 @@ export class Launchpad {
     mesh.receiveShadow = true;
     this.group.add(mesh);
     return mesh;
+  }
+
+  _buildWaterDeluge() {
+    this._deluge = new WaterDelugeSteam(this.group);
+  }
+}
+
+class WaterDelugeSteam {
+  constructor(parent) {
+    this._N = 900;
+    this._age = new Float32Array(this._N).fill(-1);
+    this._life = new Float32Array(this._N);
+    this._pos = new Float32Array(this._N * 3);
+    this._col = new Float32Array(this._N * 3);
+    this._vel = [];
+    this._active = false;
+
+    for (let i = 0; i < this._N; i++) this._vel.push(new THREE.Vector3());
+
+    this._geo = new THREE.BufferGeometry();
+    this._posAttr = new THREE.BufferAttribute(this._pos, 3);
+    this._colAttr = new THREE.BufferAttribute(this._col, 3);
+    this._posAttr.setUsage(THREE.DynamicDrawUsage);
+    this._colAttr.setUsage(THREE.DynamicDrawUsage);
+    this._geo.setAttribute('position', this._posAttr);
+    this._geo.setAttribute('color', this._colAttr);
+
+    this._mat = new THREE.PointsMaterial({
+      size:            10,
+      map:             this._buildTex(),
+      alphaMap:        this._buildTex(),
+      vertexColors:    true,
+      transparent:     true,
+      opacity:         0.42,
+      depthWrite:      false,
+      blending:        THREE.NormalBlending,
+      sizeAttenuation: true,
+    });
+
+    this._points = new THREE.Points(this._geo, this._mat);
+    this._points.frustumCulled = false;
+    this._points.visible = false;
+    parent.add(this._points);
+  }
+
+  _buildTex() {
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,255,255,0.8)');
+    g.addColorStop(0.45, 'rgba(220,230,235,0.38)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  }
+
+  burst() {
+    this._active = true;
+    this._points.visible = true;
+
+    for (let i = 0; i < this._N; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 3 + Math.random() * 12;
+      this._pos[i*3] = Math.cos(angle) * radius;
+      this._pos[i*3+1] = 1 + Math.random() * 5;
+      this._pos[i*3+2] = -6 + Math.sin(angle) * radius + Math.random() * 14;
+
+      const speed = 7 + Math.random() * 24;
+      this._vel[i].set(
+        Math.cos(angle) * speed,
+        4 + Math.random() * 13,
+        Math.sin(angle) * speed + (Math.random() - 0.5) * 12
+      );
+
+      this._age[i] = 0;
+      this._life[i] = 2.2 + Math.random() * 2.4;
+      this._col[i*3] = 0.72;
+      this._col[i*3+1] = 0.78;
+      this._col[i*3+2] = 0.82;
+    }
+
+    this._posAttr.needsUpdate = true;
+    this._colAttr.needsUpdate = true;
+  }
+
+  update(dt) {
+    if (!this._active) return;
+
+    let live = 0;
+    for (let i = 0; i < this._N; i++) {
+      if (this._age[i] < 0) continue;
+
+      this._age[i] += dt;
+      const t = this._age[i] / this._life[i];
+      if (t >= 1) {
+        this._age[i] = -1;
+        this._col[i*3] = 0;
+        this._col[i*3+1] = 0;
+        this._col[i*3+2] = 0;
+        continue;
+      }
+
+      live++;
+      const v = this._vel[i];
+      this._pos[i*3] += v.x * dt;
+      this._pos[i*3+1] += v.y * dt;
+      this._pos[i*3+2] += v.z * dt;
+      v.multiplyScalar(0.992);
+      v.y += 2.8 * dt;
+
+      const fade = (1 - t) * 0.82;
+      this._col[i*3] = fade;
+      this._col[i*3+1] = fade * 0.96;
+      this._col[i*3+2] = fade * 0.9;
+    }
+
+    this._posAttr.needsUpdate = true;
+    this._colAttr.needsUpdate = true;
+    if (live === 0) this.reset();
+  }
+
+  reset() {
+    this._active = false;
+    this._age.fill(-1);
+    this._col.fill(0);
+    this._points.visible = false;
+    this._colAttr.needsUpdate = true;
   }
 }

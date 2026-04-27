@@ -39,9 +39,9 @@
 
 ## 🔧 v0.2 — Polish & Education Layer
 
-- [ ] 3-D model improvements (normal maps, decal textures for "FALCON" lettering)
+- [x] 3-D model improvements (normal maps, decal textures for "FALCON" lettering)
 - [ ] Realistic launch-pad hold-down arm animation (swing out at T-0)
-- [ ] Water deluge system (steam particle burst at ignition)
+- [x] Water deluge system (steam particle burst at ignition)
 - [ ] Sound system (engine roar, countdown beeps, stage-sep bang) — Web Audio API
 - [ ] Gravity-turn pitch programme (2-D trajectory, not just 1-D)
 - [ ] Telemetry graph: velocity vs time, altitude vs time (canvas overlay)
