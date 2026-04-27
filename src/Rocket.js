@@ -3,6 +3,8 @@ import { ParticleEmitter } from './ParticleEmitter.js';
 import { CONFIG }          from './config.js';
 
 const CFG = CONFIG.ROCKET;
+const STAGE1_DECAL_TEXT = 'FALCON9';
+let stage1DecalMaterial = null;
 
 // ── Rocket (Falcon-9 Block-5 inspired) ───────────────────────────────────────
 export class Rocket {
@@ -56,12 +58,14 @@ export class Rocket {
     const matStripe = this._mat(0x111118, 0.3, 0.8);
     const matFin    = this._mat(0x181822, 0.3, 0.75);
     const matNozzle = this._mat(0x3a3a48, 0.15, 0.95);
+    const matDecal  = this._buildFalconDecalMaterial();
 
     // ── Stage 1 (42.6 m body) ─────────────────────────────────────────────
     const S1H = CFG.STAGE1.HEIGHT;
 
     // Main cylinder
     this._s1Group.add(this._mesh(new THREE.CylinderGeometry(R, R, S1H, 32), matBody, [0, S1H / 2, 0]));
+    this._addFalconDecals(R, S1H, matDecal);
 
     // LOX header stripe ~72 % up
     this._s1Group.add(this._mesh(new THREE.CylinderGeometry(R + 0.02, R + 0.02, 2.8, 32), matStripe, [0, S1H * 0.72, 0]));
@@ -121,11 +125,13 @@ export class Rocket {
     // ── Exhaust particle emitter ──────────────────────────────────────────
     this._exhaustEmitter = new ParticleEmitter(this.scene, {
       count:      3500,
-      speed:      90,
-      spread:     0.28,
-      lifetime:   1.6,
-      size:       5.0,
-      startColor: new THREE.Color(0xffffff),
+      speed:      78,
+      spread:     0.22,
+      lifetime:   1.15,
+      size:       3.2,
+      opacity:    0.55,
+      spawnRate:  0.14,
+      startColor: new THREE.Color(0xffb15a),
       endColor:   new THREE.Color(0x220800),
     });
     this._exhaustActive = false;
@@ -140,6 +146,48 @@ export class Rocket {
       const a = (i / 8) * Math.PI * 2;
       this._addSingleEngine(Math.cos(a) * R * 0.52, Math.sin(a) * R * 0.52, matEngine, matNozzle, parent);
     }
+  }
+
+  _buildFalconDecalMaterial() {
+    if (stage1DecalMaterial) return stage1DecalMaterial;
+
+    const c = document.createElement('canvas');
+    c.width = 256; c.height = 1024;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.fillStyle = '#111118';
+    ctx.font = 'bold 96px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const chars = STAGE1_DECAL_TEXT.split('');
+    chars.forEach((ch, i) => {
+      ctx.fillText(ch, c.width / 2, 120 + i * 104);
+    });
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    stage1DecalMaterial = new THREE.MeshBasicMaterial({
+      map:         tex,
+      transparent: true,
+      depthWrite:  false,
+      side:        THREE.DoubleSide,
+    });
+    return stage1DecalMaterial;
+  }
+
+  _addFalconDecals(R, S1H, matDecal) {
+    const positions = [
+      { pos: [0, S1H * 0.44, R + 0.025], rot: [0, 0, 0] },
+      { pos: [0, S1H * 0.44, -R - 0.025], rot: [0, Math.PI, 0] },
+    ];
+
+    positions.forEach(({ pos, rot }) => {
+      const decal = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 22), matDecal);
+      decal.position.set(...pos);
+      decal.rotation.set(...rot);
+      this._s1Group.add(decal);
+    });
   }
 
   _addSingleEngine(x, z, matEngine, matNozzle, parent) {
@@ -199,13 +247,13 @@ export class Rocket {
 
   // ── Engine events ─────────────────────────────────────────────────────────
   igniteEngines() {
-    this._s1Glows.forEach(g => { g.material.opacity = 0.65; });
+    this._s1Glows.forEach(g => { g.material.opacity = 0.38; });
     this._exhaustActive = true;
     this._exhaustEmitter.setActive(true);
   }
 
   igniteStage2() {
-    this._s2Glows.forEach(g => { g.material.opacity = 0.7; });
+    this._s2Glows.forEach(g => { g.material.opacity = 0.42; });
     this._exhaustActive = true;
     this._exhaustEmitter.setActive(true);
   }
@@ -249,20 +297,19 @@ export class Rocket {
   // ── Per-frame update ──────────────────────────────────────────────────────
   update(dt, physState) {
     // Lift rocket body with altitude
+    this.group.position.x = physState.downrange ?? 0;
     this.group.position.y = this._baseY + physState.altitude;
 
-    // Gravity-turn pitch programme (subtle)
-    if (physState.altitude > 500 && physState.altitude < 80_000) {
-      const target = Math.min(0.25, physState.altitude / 120_000);
-      this._pitchAngle += (target - this._pitchAngle) * 0.005;
-      this.group.rotation.z = this._pitchAngle;
-    }
+    // Gravity-turn pitch programme follows the 2-D physics state.
+    const target = physState.pitchAngle ?? 0;
+    this._pitchAngle += (target - this._pitchAngle) * Math.min(1, dt * 2.5);
+    this.group.rotation.z = -this._pitchAngle;
 
     // Engine glow flicker
     if (physState.engineRunning && this._exhaustActive) {
       const flicker = 0.55 + Math.random() * 0.45;
       this._nozzleGlows.forEach(g => {
-        g.material.opacity = g.material.opacity > 0 ? flicker * 0.7 : 0;
+        g.material.opacity = g.material.opacity > 0 ? flicker * 0.38 : 0;
       });
     }
 
@@ -285,6 +332,7 @@ export class Rocket {
       this.group.add(this._s1Group);
     }
     this._s2Group.position.y = CFG.STAGE1.HEIGHT + 1.2;
+    this.group.position.x = 0;
     this.group.rotation.set(0, 0, 0);
     this._pitchAngle = 0;
     this.cutEngines(); // zeroes all glow opacities

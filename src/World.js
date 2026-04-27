@@ -23,13 +23,13 @@ export class World {
   // ── Lighting ──────────────────────────────────────────────────────────────
   _buildLighting() {
     // Ambient sky fill
-    this.scene.add(new THREE.AmbientLight(0x6688aa, 0.4));
+    this.scene.add(new THREE.AmbientLight(0x6688aa, 0.32));
 
     // Hemisphere (sky blue / ground green)
-    this.scene.add(new THREE.HemisphereLight(0x87ceeb, 0x3d6622, 0.6));
+    this.scene.add(new THREE.HemisphereLight(0x87ceeb, 0x3d6622, 0.5));
 
     // Directional sun with shadows
-    this._sun = new THREE.DirectionalLight(0xfff4dd, 3.5);
+    this._sun = new THREE.DirectionalLight(0xfff4dd, 2.8);
     this._sun.position.set(-600, 900, -1200);
     this._sun.castShadow = true;
     const s = this._sun.shadow;
@@ -50,15 +50,15 @@ export class World {
     this._sky = new Sky();
     this._sky.scale.setScalar(450_000);
     this.scene.add(this._sky);
-    this._applySkyParams({ turbidity: 4, rayleigh: 0.5, elevation: 18, azimuth: 195 });
+    this._applySkyParams({ turbidity: 2.6, rayleigh: 0.34, elevation: 24, azimuth: 205 });
   }
 
   _applySkyParams({ turbidity, rayleigh, elevation, azimuth }) {
     const u = this._sky.material.uniforms;
     u['turbidity'].value          = turbidity;
     u['rayleigh'].value           = rayleigh;
-    u['mieCoefficient'].value     = 0.005;
-    u['mieDirectionalG'].value    = 0.94;
+    u['mieCoefficient'].value     = 0.0018;
+    u['mieDirectionalG'].value    = 0.86;
 
     const phi   = THREE.MathUtils.degToRad(90 - elevation);
     const theta = THREE.MathUtils.degToRad(azimuth);
@@ -165,10 +165,10 @@ export class World {
     if (altitudeM > 5_000) {
       const t   = Math.min(1, altitudeM / 80_000);
       this._applySkyParams({
-        turbidity: Math.max(0.1, 4   - t * 3.9),
-        rayleigh:  Math.max(0.01, 0.5 - t * 0.48),
-        elevation: 18,
-        azimuth:   195,
+        turbidity: Math.max(0.1, 2.6  - t * 2.5),
+        rayleigh:  Math.max(0.01, 0.34 - t * 0.32),
+        elevation: 24,
+        azimuth:   205,
       });
     }
   }

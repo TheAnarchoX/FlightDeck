@@ -39,16 +39,16 @@
 
 ## 🔧 v0.2 — Polish & Education Layer
 
-- [ ] 3-D model improvements (normal maps, decal textures for "FALCON" lettering)
-- [ ] Realistic launch-pad hold-down arm animation (swing out at T-0)
-- [ ] Water deluge system (steam particle burst at ignition)
-- [ ] Sound system (engine roar, countdown beeps, stage-sep bang) — Web Audio API
-- [ ] Gravity-turn pitch programme (2-D trajectory, not just 1-D)
-- [ ] Telemetry graph: velocity vs time, altitude vs time (canvas overlay)
-- [ ] "Did you know?" pop-up panels tied to flight events
+- [x] 3-D model improvements (normal maps, decal textures for "FALCON" lettering)
+- [x] Realistic launch-pad hold-down arm animation (swing out at T-0)
+- [x] Water deluge system (steam particle burst at ignition)
+- [x] Sound system (engine roar, countdown beeps, stage-sep bang) — Web Audio API
+- [x] Gravity-turn pitch programme (2-D trajectory, not just 1-D)
+- [x] Telemetry graph: velocity vs time, altitude vs time (canvas overlay)
+- [x] "Did you know?" pop-up panels tied to flight events
   - e.g. "At Max-Q the aerodynamic load on Falcon 9 is ~3 300 kN"
-- [ ] Mobile touch controls (virtual throttle slider + launch button)
-- [ ] Settings panel: engine count, payload mass, orbit target altitude
+- [x] Mobile touch controls (virtual throttle slider + launch button)
+- [x] Settings panel: engine count, payload mass, orbit target altitude
 
 ---
 

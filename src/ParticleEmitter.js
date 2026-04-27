@@ -2,8 +2,7 @@ import * as THREE from 'three';
 
 // ── Engine-exhaust particle system ────────────────────────────────────────────
 //
-// Uses BufferGeometry + PointsMaterial with additive blending so that overlapping
-// particles add brightness — works perfectly with the UnrealBloomPass.
+// Uses BufferGeometry + PointsMaterial for lightweight engine-exhaust particles.
 export class ParticleEmitter {
   constructor(scene, opts = {}) {
     this.scene   = scene;
@@ -15,6 +14,8 @@ export class ParticleEmitter {
       spread:     opts.spread     ?? 0.3,   // radians half-angle
       lifetime:   opts.lifetime   ?? 1.4,
       size:       opts.size       ?? 4.5,
+      opacity:    opts.opacity    ?? 0.65,
+      spawnRate:  opts.spawnRate  ?? 0.2,
       startColor: opts.startColor ?? new THREE.Color(0xffffff),
       endColor:   opts.endColor   ?? new THREE.Color(0x220500),
     };
@@ -59,6 +60,7 @@ export class ParticleEmitter {
       alphaMap:        tex,
       vertexColors:    true,
       transparent:     true,
+      opacity:         this._opts.opacity,
       depthWrite:      false,
       blending:        THREE.AdditiveBlending,
       sizeAttenuation: true,
@@ -101,7 +103,7 @@ export class ParticleEmitter {
 
     // Spawn new particles when active
     if (this._active) {
-      const toSpawn = Math.min(Math.floor(N * 0.35 * dt * 60), N / 4);
+      const toSpawn = Math.min(Math.floor(N * this._opts.spawnRate * dt * 60), N / 5);
       for (let k = 0; k < toSpawn; k++) {
         this._spawn(this._next, speed, spread, lifetime);
         this._next = (this._next + 1) % N;
@@ -135,7 +137,7 @@ export class ParticleEmitter {
 
       // Colour & brightness
       tmpColor.copy(startColor).lerp(endColor, t);
-      const bright = (1 - t * t);       // quadratic fade
+      const bright = (1 - t * t) * 0.7; // quadratic fade without screen washout
       this._col[i*3]   = tmpColor.r * bright;
       this._col[i*3+1] = tmpColor.g * bright;
       this._col[i*3+2] = tmpColor.b * bright;
@@ -168,8 +170,8 @@ export class ParticleEmitter {
     this._life[i] = lifetime * (0.75 + Math.random() * 0.5);
 
     // White-hot at birth
-    this._col[i*3]   = 1;
-    this._col[i*3+1] = 0.95;
-    this._col[i*3+2] = 0.85;
+    this._col[i*3]   = 0.85;
+    this._col[i*3+1] = 0.62;
+    this._col[i*3+2] = 0.32;
   }
 }

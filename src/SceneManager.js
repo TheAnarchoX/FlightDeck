@@ -25,7 +25,7 @@ export class SceneManager {
   // ── Scene ─────────────────────────────────────────────────────────────────
   _buildScene() {
     this.scene = new THREE.Scene();
-    this.scene.fog = new THREE.FogExp2(0x99bbdd, 0.000018);
+    this.scene.fog = new THREE.FogExp2(0x8fb0d0, 0.0000045);
   }
 
   // ── Camera ────────────────────────────────────────────────────────────────
@@ -49,7 +49,7 @@ export class SceneManager {
     this.renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
 
     this.renderer.toneMapping         = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure  = 1.0;
+    this.renderer.toneMappingExposure  = 0.82;
     this.renderer.outputColorSpace    = THREE.SRGBColorSpace;
   }
 
@@ -60,8 +60,8 @@ export class SceneManager {
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
 
-    // Bloom — lights up engine exhausts and emissive materials
-    this.bloomPass = new UnrealBloomPass(size, 0.75, 0.45, 0.82);
+    // Bloom — restrained so exhaust glows without washing out the vehicle
+    this.bloomPass = new UnrealBloomPass(size, 0.28, 0.28, 0.92);
     this.composer.addPass(this.bloomPass);
 
     this.composer.addPass(new OutputPass());
@@ -80,18 +80,18 @@ export class SceneManager {
 
   // ── Atmosphere updates (called every frame) ───────────────────────────────
   updateAtmosphere(altitudeM) {
-    // Gradually remove fog and crank bloom as we leave the atmosphere
+    // Gradually remove haze; keep bloom controlled so the rocket remains visible
     if (altitudeM < 20_000) {
       const t = altitudeM / 20_000;
-      this.scene.fog.density = 0.000018 * (1 - t * 0.6);
-      this.bloomPass.strength = 0.75 + t * 0.25;
+      this.scene.fog.density = 0.0000045 * (1 - t * 0.65);
+      this.bloomPass.strength = 0.28 + t * 0.10;
     } else if (altitudeM < 80_000) {
       const t = (altitudeM - 20_000) / 60_000;
-      this.scene.fog.density = 0.000007 * (1 - t);
-      this.bloomPass.strength = 1.0 + t * 0.5;
+      this.scene.fog.density = 0.0000016 * (1 - t);
+      this.bloomPass.strength = 0.38 + t * 0.16;
     } else {
       this.scene.fog.density = 0;
-      this.bloomPass.strength = 1.8;
+      this.bloomPass.strength = 0.6;
     }
   }
 

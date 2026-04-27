@@ -100,6 +100,14 @@
     #panel-fuel         { top: 56px;  right: 0; }
     #panel-stage        { top: 128px; right: 0; }
     #panel-dynpressure  { top: 200px; right: 0; }
+    #panel-telemetry    { bottom: 48px; right: 0; min-width: 300px; }
+    #telemetry-graph {
+      width: 270px;
+      height: 110px;
+      display: block;
+      border: 1px solid var(--hud-border);
+      background: rgba(0,8,20,0.74);
+    }
 
     /* Progress bar */
     .hud-bar {
@@ -150,6 +158,54 @@
     .hud-btn.launch:hover { background: rgba(255,119,0,0.15); }
     .hud-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
+    /* Settings */
+    #settings-panel {
+      position: absolute;
+      right: 18px;
+      bottom: 92px;
+      width: 300px;
+      background: var(--hud-bg);
+      border: 1px solid var(--hud-border);
+      padding: 12px;
+      pointer-events: all;
+      display: none;
+    }
+    #settings-panel.open { display: block; }
+    .settings-row {
+      display: grid;
+      grid-template-columns: 1fr 90px;
+      gap: 8px;
+      align-items: center;
+      margin: 8px 0;
+      font-size: 10px;
+      color: var(--c-secondary);
+      letter-spacing: 1px;
+    }
+    .settings-row input {
+      width: 100%;
+      background: rgba(0,200,255,0.08);
+      border: 1px solid var(--hud-border);
+      color: var(--c-primary);
+      font-family: var(--font);
+      padding: 4px;
+    }
+
+    /* Mobile controls */
+    #mobile-controls {
+      display: none;
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: 54px;
+      padding: 8px;
+      background: var(--hud-bg);
+      border: 1px solid var(--hud-border);
+      pointer-events: all;
+      gap: 8px;
+      align-items: center;
+    }
+    #touch-throttle { flex: 1; accent-color: var(--c-accent); }
+
     /* Event log */
     #event-log {
       position: absolute;
@@ -166,6 +222,35 @@
     .ev.ok  { color: var(--c-success); }
     .ev.warn { color: var(--c-warning); }
     .ev.err  { color: var(--c-danger); }
+
+    /* Education pop-up */
+    #edu-tip {
+      position: absolute;
+      left: 50%;
+      top: 86px;
+      transform: translateX(-50%) translateY(-10px);
+      width: min(420px, 80vw);
+      background: rgba(0, 8, 20, 0.9);
+      border: 1px solid var(--hud-border);
+      padding: 12px 16px;
+      opacity: 0;
+      transition: opacity 0.25s, transform 0.25s;
+    }
+    #edu-tip.vis {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    #edu-tip-title {
+      color: var(--c-accent);
+      font-size: 12px;
+      letter-spacing: 3px;
+      margin-bottom: 5px;
+    }
+    #edu-tip-body {
+      color: var(--c-secondary);
+      font-size: 12px;
+      line-height: 1.45;
+    }
 
     /* Countdown overlay */
     #countdown-overlay {
@@ -219,6 +304,21 @@
       50%      { opacity: 0.25; }
     }
     .maxq-flash { animation: flash 0.45s infinite; color: var(--c-warning) !important; }
+
+    @media (max-width: 760px), (pointer: coarse) {
+      #hud-top { padding: 6px 10px; }
+      .hud-logo { font-size: 14px; letter-spacing: 3px; }
+      #mission-name { display: none; }
+      #met { font-size: 16px; }
+      .hud-panel { min-width: 140px; padding: 7px 9px; }
+      .hud-value { font-size: 18px; }
+      #panel-telemetry { display: none; }
+      #event-log { bottom: 108px; width: 100%; }
+      #hud-bottom { padding: 7px 10px; }
+      .hud-keyhints { display: none; }
+      #mobile-controls { display: flex; }
+      #settings-panel { right: 10px; bottom: 112px; width: calc(100vw - 20px); }
+    }
   </style>
 </head>
 <body>
@@ -255,12 +355,14 @@
       <div class="hud-panel-title">Altitude</div>
       <div><span class="hud-value" id="alt-val">0.0</span><span class="hud-unit" id="alt-unit">m</span></div>
       <div class="hud-sub" id="alt-km">0.000 km</div>
+      <div class="hud-sub" id="range-km">0.00 km downrange</div>
     </div>
 
     <div class="hud-panel" id="panel-velocity">
       <div class="hud-panel-title">Velocity</div>
       <div><span class="hud-value" id="vel-val">0.0</span><span class="hud-unit">m/s</span></div>
       <div class="hud-sub" id="vel-kmh">0 km/h</div>
+      <div class="hud-sub" id="vel-components">V:0 · H:0 m/s</div>
     </div>
 
     <div class="hud-panel" id="panel-gforce">
@@ -292,6 +394,36 @@
     <!-- Event log -->
     <div id="event-log"></div>
 
+    <div class="hud-panel" id="panel-telemetry">
+      <div class="hud-panel-title">Telemetry Graph</div>
+      <canvas id="telemetry-graph" width="270" height="110"></canvas>
+    </div>
+
+    <div id="edu-tip">
+      <div id="edu-tip-title">DID YOU KNOW?</div>
+      <div id="edu-tip-body"></div>
+    </div>
+
+    <div id="settings-panel">
+      <div class="hud-panel-title">Mission Settings</div>
+      <label class="settings-row">Stage-1 engines
+        <input id="set-engine-count" type="number" min="1" max="9" step="1" value="9">
+      </label>
+      <label class="settings-row">Payload mass kg
+        <input id="set-payload-mass" type="number" min="1000" max="50000" step="500" value="15000">
+      </label>
+      <label class="settings-row">Target altitude km
+        <input id="set-target-alt" type="number" min="100" max="500" step="10" value="200">
+      </label>
+      <button class="hud-btn" id="btn-apply-settings">APPLY</button>
+    </div>
+
+    <div id="mobile-controls">
+      <button class="hud-btn launch" onclick="window.gameInstance?.triggerLaunch()">LAUNCH</button>
+      <label class="hud-sub" for="touch-throttle">THROTTLE</label>
+      <input id="touch-throttle" type="range" min="0" max="100" value="0">
+    </div>
+
     <!-- Bottom bar -->
     <div id="hud-bottom">
       <div class="hud-keyhints">
@@ -304,6 +436,7 @@
       <div class="hud-controls">
         <button class="hud-btn" id="btn-reset"  onclick="window.gameInstance?.reset()">RESET</button>
         <button class="hud-btn" id="btn-cam"    onclick="window.gameInstance?.cycleCam()">CAM</button>
+        <button class="hud-btn" id="btn-settings">SET</button>
         <button class="hud-btn launch" id="btn-launch" onclick="window.gameInstance?.triggerLaunch()">LAUNCH</button>
       </div>
     </div>
