@@ -7,6 +7,8 @@ const H0 = CONFIG.ATM_SCALE_HEIGHT;
 
 // ── Physics engine (2-D gravity-turn ascent, RK4 vertical integration) ────────
 export class PhysicsEngine {
+  static GRAVITY_TURN_MAX_ANGLE_RAD = Math.PI * 0.42;
+
   constructor() {
     this.stage = 1;
     this._settings = {
@@ -139,7 +141,7 @@ export class PhysicsEngine {
     if (alt < 500) return 0;
     const t = Math.min(1, (alt - 500) / 90_000);
     const smooth = t * t * (3 - 2 * t);
-    return smooth * GRAVITY_TURN_MAX_ANGLE_RAD;
+    return smooth * PhysicsEngine.GRAVITY_TURN_MAX_ANGLE_RAD;
   }
 
   _drag(rho, vel) {
@@ -211,5 +213,3 @@ export class PhysicsEngine {
     };
   }
 }
-
-const GRAVITY_TURN_MAX_ANGLE_RAD = Math.PI * 0.42;

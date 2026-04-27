@@ -4,6 +4,7 @@ import { CONFIG }          from './config.js';
 
 const CFG = CONFIG.ROCKET;
 const STAGE1_DECAL_TEXT = 'FALCON9';
+let stage1DecalMaterial = null;
 
 // ── Rocket (Falcon-9 Block-5 inspired) ───────────────────────────────────────
 export class Rocket {
@@ -148,6 +149,8 @@ export class Rocket {
   }
 
   _buildFalconDecalMaterial() {
+    if (stage1DecalMaterial) return stage1DecalMaterial;
+
     const c = document.createElement('canvas');
     c.width = 256; c.height = 1024;
     const ctx = c.getContext('2d');
@@ -164,12 +167,13 @@ export class Rocket {
 
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
-    return new THREE.MeshBasicMaterial({
+    stage1DecalMaterial = new THREE.MeshBasicMaterial({
       map:         tex,
       transparent: true,
       depthWrite:  false,
       side:        THREE.DoubleSide,
     });
+    return stage1DecalMaterial;
   }
 
   _addFalconDecals(R, S1H, matDecal) {

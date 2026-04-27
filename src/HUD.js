@@ -1,6 +1,7 @@
 // ── HUD — DOM telemetry overlay ───────────────────────────────────────────────
 
 const $ = id => document.getElementById(id);
+const MAX_TELEMETRY_SAMPLES = 180;
 
 function fmt(n, dec = 1) {
   return n.toFixed(dec);
@@ -200,7 +201,7 @@ export class HUD {
       alt: Math.max(0, s.altitude),
       vel: Math.max(0, s.velocity),
     });
-    while (this._samples.length > 180) this._samples.shift();
+    while (this._samples.length > MAX_TELEMETRY_SAMPLES) this._samples.shift();
     this._drawGraph();
   }
 
