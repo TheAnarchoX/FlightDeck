@@ -57,13 +57,13 @@ export class PhysicsEngine {
   // ── Integrate one timestep ────────────────────────────────────────────────
   update(dt) {
     // RK4 for velocity & altitude
-    const k1 = this._accelAt(this._altitude, this._velocity, dt * 0);
+    const k1 = this._accelAt(this._altitude, this._velocity);
     const k2 = this._accelAt(this._altitude + this._velocity * dt / 2,
-                              this._velocity + k1 * dt / 2, dt / 2);
+                              this._velocity + k1 * dt / 2);
     const k3 = this._accelAt(this._altitude + this._velocity * dt / 2 + k1 * dt * dt / 4,
-                              this._velocity + k2 * dt / 2, dt / 2);
+                              this._velocity + k2 * dt / 2);
     const k4 = this._accelAt(this._altitude + this._velocity * dt,
-                              this._velocity + k3 * dt, dt);
+                              this._velocity + k3 * dt);
 
     this._accel     = (k1 + 2 * k2 + 2 * k3 + k4) / 6;
     this._velocity += this._accel * dt;
