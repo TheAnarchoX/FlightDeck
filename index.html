@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlightDeck — Rocketry Simulator</title>
+  <style>
+    :root {
+      --hud-bg:      rgba(0, 8, 20, 0.82);
+      --hud-border:  rgba(0, 200, 255, 0.25);
+      --c-primary:   #00e5ff;
+      --c-secondary: #7ecbff;
+      --c-accent:    #ff7700;
+      --c-success:   #00ff9f;
+      --c-warning:   #ffd500;
+      --c-danger:    #ff3838;
+      --font: 'Courier New', 'Lucida Console', monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      overflow: hidden;
+      font-family: var(--font);
+      color: var(--c-primary);
+      user-select: none;
+    }
+    #game-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw; height: 100vh;
+      display: block;
+    }
+    /* ── HUD ─────────────────────────────────── */
+    #hud {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+    /* Top bar */
+    #hud-top {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--hud-bg);
+      border-bottom: 1px solid var(--hud-border);
+      padding: 8px 18px;
+      gap: 12px;
+    }
+    .hud-logo {
+      font-size: 18px;
+      font-weight: bold;
+      color: var(--c-accent);
+      letter-spacing: 5px;
+      white-space: nowrap;
+    }
+    .hud-logo span { color: var(--c-primary); font-weight: normal; }
+    #mission-phase {
+      font-size: 13px;
+      letter-spacing: 3px;
+      color: var(--c-accent);
+    }
+    #mission-name {
+      font-size: 10px;
+      color: var(--c-secondary);
+      letter-spacing: 1px;
+      margin-top: 2px;
+    }
+    .hud-met-wrap { text-align: right; }
+    .hud-met-label { font-size: 9px; color: var(--c-secondary); letter-spacing: 2px; }
+    #met { font-size: 20px; letter-spacing: 2px; }
+
+    /* Side panels */
+    .hud-panel {
+      position: absolute;
+      background: var(--hud-bg);
+      border: 1px solid var(--hud-border);
+      padding: 9px 14px;
+      min-width: 175px;
+    }
+    .hud-panel-title {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: var(--c-secondary);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--hud-border);
+      padding-bottom: 3px;
+      margin-bottom: 4px;
+    }
+    .hud-value { font-size: 22px; font-weight: bold; }
+    .hud-unit  { font-size: 11px; color: var(--c-secondary); margin-left: 3px; }
+    .hud-sub   { font-size: 10px; color: var(--c-secondary); margin-top: 3px; }
+
+    #panel-altitude     { top: 56px;  left: 0; }
+    #panel-velocity     { top: 128px; left: 0; }
+    #panel-gforce       { top: 200px; left: 0; }
+    #panel-fuel         { top: 56px;  right: 0; }
+    #panel-stage        { top: 128px; right: 0; }
+    #panel-dynpressure  { top: 200px; right: 0; }
+
+    /* Progress bar */
+    .hud-bar {
+      width: 100%;
+      height: 5px;
+      background: rgba(0,200,255,0.08);
+      border: 1px solid var(--hud-border);
+      margin-top: 5px;
+    }
+    .hud-bar-fill { height: 100%; background: var(--c-primary); transition: width 0.1s; }
+
+    /* Bottom bar */
+    #hud-bottom {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: var(--hud-bg);
+      border-top: 1px solid var(--hud-border);
+      padding: 8px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: all;
+    }
+    .hud-keyhints { font-size: 11px; color: var(--c-secondary); }
+    kbd {
+      padding: 1px 5px;
+      border: 1px solid var(--hud-border);
+      border-radius: 2px;
+      color: var(--c-primary);
+      background: rgba(0,200,255,0.05);
+    }
+    #launch-seq-display { font-size: 13px; letter-spacing: 3px; color: var(--c-success); }
+    .hud-controls { display: flex; gap: 8px; }
+    .hud-btn {
+      padding: 6px 14px;
+      background: transparent;
+      border: 1px solid var(--hud-border);
+      color: var(--c-primary);
+      font-family: var(--font);
+      font-size: 12px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-transform: uppercase;
+    }
+    .hud-btn:hover { background: rgba(0,200,255,0.1); border-color: var(--c-primary); }
+    .hud-btn.launch { border-color: var(--c-accent); color: var(--c-accent); }
+    .hud-btn.launch:hover { background: rgba(255,119,0,0.15); }
+    .hud-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* Event log */
+    #event-log {
+      position: absolute;
+      bottom: 48px;
+      left: 0;
+      width: 300px;
+      max-height: 110px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column-reverse;
+      padding: 0 18px;
+    }
+    .ev { font-size: 11px; color: var(--c-secondary); padding: 1px 0; opacity: 0.9; }
+    .ev.ok  { color: var(--c-success); }
+    .ev.warn { color: var(--c-warning); }
+    .ev.err  { color: var(--c-danger); }
+
+    /* Countdown overlay */
+    #countdown-overlay {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 96px;
+      font-weight: bold;
+      color: var(--c-primary);
+      text-shadow: 0 0 60px rgba(0,200,255,0.9);
+      pointer-events: none;
+      z-index: 20;
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+    #countdown-overlay.vis { opacity: 1; }
+
+    /* Loading screen */
+    #loading-screen {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: #000010;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      transition: opacity 0.9s;
+    }
+    #loading-screen.hidden { opacity: 0; pointer-events: none; }
+    .ld-title    { font-size: 52px; font-weight: bold; color: var(--c-accent); letter-spacing: 14px; margin-bottom: 6px; }
+    .ld-subtitle { font-size: 13px; color: var(--c-secondary); letter-spacing: 5px; margin-bottom: 40px; }
+    .ld-bar-wrap {
+      width: 320px; height: 2px;
+      background: rgba(0,200,255,0.1);
+      border: 1px solid var(--hud-border);
+    }
+    #ld-bar {
+      height: 100%;
+      background: var(--c-primary);
+      width: 0%;
+      transition: width 0.4s;
+      box-shadow: 0 0 12px var(--c-primary);
+    }
+    #ld-status { margin-top: 14px; font-size: 11px; color: var(--c-secondary); letter-spacing: 3px; }
+
+    /* Max-Q flash */
+    @keyframes flash {
+      0%,100% { opacity: 1; }
+      50%      { opacity: 0.25; }
+    }
+    .maxq-flash { animation: flash 0.45s infinite; color: var(--c-warning) !important; }
+  </style>
+</head>
+<body>
+
+  <!-- Loading screen -->
+  <div id="loading-screen">
+    <div class="ld-title">FLIGHTDECK</div>
+    <div class="ld-subtitle">ROCKETRY EDUCATION SIMULATOR</div>
+    <div class="ld-bar-wrap"><div id="ld-bar"></div></div>
+    <div id="ld-status">INITIALIZING...</div>
+  </div>
+
+  <!-- 3-D canvas -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- HUD overlay -->
+  <div id="hud">
+
+    <!-- Top bar -->
+    <div id="hud-top">
+      <div class="hud-logo">FLIGHT<span>DECK</span></div>
+      <div style="text-align:center;">
+        <div id="mission-phase">PRE-LAUNCH</div>
+        <div id="mission-name">MISSION: FD-001 · FALCON TEST FLIGHT</div>
+      </div>
+      <div class="hud-met-wrap">
+        <div class="hud-met-label">MISSION ELAPSED TIME</div>
+        <div id="met">T- 00:00:10</div>
+      </div>
+    </div>
+
+    <!-- Left panels -->
+    <div class="hud-panel" id="panel-altitude">
+      <div class="hud-panel-title">Altitude</div>
+      <div><span class="hud-value" id="alt-val">0.0</span><span class="hud-unit" id="alt-unit">m</span></div>
+      <div class="hud-sub" id="alt-km">0.000 km</div>
+    </div>
+
+    <div class="hud-panel" id="panel-velocity">
+      <div class="hud-panel-title">Velocity</div>
+      <div><span class="hud-value" id="vel-val">0.0</span><span class="hud-unit">m/s</span></div>
+      <div class="hud-sub" id="vel-kmh">0 km/h</div>
+    </div>
+
+    <div class="hud-panel" id="panel-gforce">
+      <div class="hud-panel-title">G-Force / Accel</div>
+      <div><span class="hud-value" id="gf-val">1.00</span><span class="hud-unit">g</span></div>
+      <div class="hud-sub" id="accel-ms2">0.00 m/s²</div>
+    </div>
+
+    <!-- Right panels -->
+    <div class="hud-panel" id="panel-fuel">
+      <div class="hud-panel-title">Propellant Remaining</div>
+      <div><span class="hud-value" id="fuel-val">100.0</span><span class="hud-unit">%</span></div>
+      <div class="hud-bar"><div class="hud-bar-fill" id="fuel-bar" style="width:100%"></div></div>
+    </div>
+
+    <div class="hud-panel" id="panel-stage">
+      <div class="hud-panel-title">Stage / Throttle</div>
+      <div><span class="hud-value" id="stage-val">S1</span></div>
+      <div class="hud-sub">THROTTLE: <span id="thr-val">0</span>%</div>
+      <div class="hud-bar"><div class="hud-bar-fill" id="thr-bar" style="width:0%;background:var(--c-accent)"></div></div>
+    </div>
+
+    <div class="hud-panel" id="panel-dynpressure">
+      <div class="hud-panel-title">Dynamic Pressure</div>
+      <div><span class="hud-value" id="dynp-val">0.0</span><span class="hud-unit">kPa</span></div>
+      <div class="hud-sub" id="dynp-status">NOMINAL</div>
+    </div>
+
+    <!-- Event log -->
+    <div id="event-log"></div>
+
+    <!-- Bottom bar -->
+    <div id="hud-bottom">
+      <div class="hud-keyhints">
+        <kbd>SPACE</kbd> Launch &nbsp;
+        <kbd>↑↓</kbd> Throttle &nbsp;
+        <kbd>C</kbd> Camera &nbsp;
+        <kbd>R</kbd> Reset
+      </div>
+      <div id="launch-seq-display"></div>
+      <div class="hud-controls">
+        <button class="hud-btn" id="btn-reset"  onclick="window.gameInstance?.reset()">RESET</button>
+        <button class="hud-btn" id="btn-cam"    onclick="window.gameInstance?.cycleCam()">CAM</button>
+        <button class="hud-btn launch" id="btn-launch" onclick="window.gameInstance?.triggerLaunch()">LAUNCH</button>
+      </div>
+    </div>
+
+  </div><!-- /#hud -->
+
+  <!-- Countdown overlay -->
+  <div id="countdown-overlay"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
