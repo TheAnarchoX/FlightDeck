@@ -156,7 +156,7 @@ export class Rocket {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    const chars = 'FALCON 9'.split('');
+    const chars = 'FALCON9'.split('');
     chars.forEach((ch, i) => {
       ctx.fillText(ch, c.width / 2, 120 + i * 104);
     });

@@ -1,5 +1,8 @@
 import * as THREE from 'three';
 
+const DELUGE_Z_OFFSET = -6;
+const DELUGE_Z_SPREAD = 14;
+
 // ── Launch complex geometry (LC-39A inspired) ─────────────────────────────────
 export class Launchpad {
   constructor(scene) {
@@ -186,7 +189,7 @@ class WaterDelugeSteam {
       const radius = 3 + Math.random() * 12;
       this._pos[i*3] = Math.cos(angle) * radius;
       this._pos[i*3+1] = 1 + Math.random() * 5;
-      this._pos[i*3+2] = -6 + Math.sin(angle) * radius + Math.random() * 14;
+      this._pos[i*3+2] = DELUGE_Z_OFFSET + Math.sin(angle) * radius + Math.random() * DELUGE_Z_SPREAD;
 
       const speed = 7 + Math.random() * 24;
       this._vel[i].set(
