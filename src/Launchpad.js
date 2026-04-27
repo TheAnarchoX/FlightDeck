@@ -11,6 +11,8 @@ export class Launchpad {
     this.group = new THREE.Group();
     this._mountY = 9; // world Y where rocket base sits
     this._deluge = null;
+    this._holdDownArms = [];
+    this._holdDownReleased = false;
   }
 
   init() {
@@ -29,10 +31,23 @@ export class Launchpad {
 
   update(dt) {
     if (this._deluge) this._deluge.update(dt);
+    this._updateHoldDownArms(dt);
   }
 
   resetEffects() {
     if (this._deluge) this._deluge.reset();
+    this.resetHoldDownArms();
+  }
+
+  releaseHoldDownArms() {
+    this._holdDownReleased = true;
+  }
+
+  resetHoldDownArms() {
+    this._holdDownReleased = false;
+    this._holdDownArms.forEach(arm => {
+      arm.rotation.y = arm.userData.closedRotation;
+    });
   }
 
   // ── Materials ─────────────────────────────────────────────────────────────
@@ -57,6 +72,7 @@ export class Launchpad {
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
       this._add(new THREE.BoxGeometry(1, 2.5, 1), m.dark, [Math.cos(a) * 3.5, 9.75, Math.sin(a) * 3.5]);
+      this._addHoldDownArm(a, m.dark);
     }
 
     // ── Flame trench walls ───────────────────────────────────────────────────
@@ -123,6 +139,37 @@ export class Launchpad {
     mesh.receiveShadow = true;
     this.group.add(mesh);
     return mesh;
+  }
+
+  _addHoldDownArm(angle, mat) {
+    const pivot = new THREE.Group();
+    pivot.position.set(Math.cos(angle) * 3.7, 10.9, Math.sin(angle) * 3.7);
+    pivot.rotation.y = -angle;
+    pivot.userData.closedRotation = -angle;
+    pivot.userData.openRotation = -angle + Math.PI * 0.55;
+
+    const claw = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.28, 0.42), mat);
+    claw.position.x = -1.3;
+    claw.castShadow = true;
+    claw.receiveShadow = true;
+    pivot.add(claw);
+
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.45, 0.75), mat);
+    pad.position.x = -2.8;
+    pad.castShadow = true;
+    pad.receiveShadow = true;
+    pivot.add(pad);
+
+    this._holdDownArms.push(pivot);
+    this.group.add(pivot);
+  }
+
+  _updateHoldDownArms(dt) {
+    const speed = Math.min(1, dt * 5);
+    this._holdDownArms.forEach(arm => {
+      const target = this._holdDownReleased ? arm.userData.openRotation : arm.userData.closedRotation;
+      arm.rotation.y += (target - arm.rotation.y) * speed;
+    });
   }
 
   _buildWaterDeluge() {

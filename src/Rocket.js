@@ -293,14 +293,13 @@ export class Rocket {
   // ── Per-frame update ──────────────────────────────────────────────────────
   update(dt, physState) {
     // Lift rocket body with altitude
+    this.group.position.x = physState.downrange ?? 0;
     this.group.position.y = this._baseY + physState.altitude;
 
-    // Gravity-turn pitch programme (subtle)
-    if (physState.altitude > 500 && physState.altitude < 80_000) {
-      const target = Math.min(0.25, physState.altitude / 120_000);
-      this._pitchAngle += (target - this._pitchAngle) * 0.005;
-      this.group.rotation.z = this._pitchAngle;
-    }
+    // Gravity-turn pitch programme follows the 2-D physics state.
+    const target = physState.pitchAngle ?? 0;
+    this._pitchAngle += (target - this._pitchAngle) * Math.min(1, dt * 2.5);
+    this.group.rotation.z = -this._pitchAngle;
 
     // Engine glow flicker
     if (physState.engineRunning && this._exhaustActive) {
@@ -329,6 +328,7 @@ export class Rocket {
       this.group.add(this._s1Group);
     }
     this._s2Group.position.y = CFG.STAGE1.HEIGHT + 1.2;
+    this.group.position.x = 0;
     this.group.rotation.set(0, 0, 0);
     this._pitchAngle = 0;
     this.cutEngines(); // zeroes all glow opacities

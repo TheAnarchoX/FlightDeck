@@ -6,6 +6,7 @@ import { Rocket }            from './Rocket.js';
 import { PhysicsEngine }     from './PhysicsEngine.js';
 import { CameraController }  from './CameraController.js';
 import { HUD }               from './HUD.js';
+import { AudioSystem }       from './AudioSystem.js';
 import { CONFIG }            from './config.js';
 
 // ── Game states ───────────────────────────────────────────────────────────────
@@ -30,6 +31,8 @@ export class Game {
     this._maxQLogged   = false;
     this._starsLogged  = false;
     this._stagingTimer = 0;
+    this._lastCountdownTick = 10;
+    this._orbitTargetLogged = false;
   }
 
   // ── Init ──────────────────────────────────────────────────────────────────
@@ -51,13 +54,16 @@ export class Game {
     this.camera    = new CameraController(this.sceneMgr.camera, this.rocket);
     this.camera.setView('PAD');
     this.hud       = new HUD(this);
+    this.audio     = new AudioSystem();
 
     this._setupInput();
+    this._setupControls();
   }
 
   // ── Input ─────────────────────────────────────────────────────────────────
   _setupInput() {
     document.addEventListener('keydown', e => {
+      this.audio.resume();
       switch (e.code) {
         case 'Space':        e.preventDefault(); this.triggerLaunch(); break;
         case 'ArrowUp':
@@ -82,12 +88,34 @@ export class Game {
 
   cycleCam() { this.camera.cycleView(); }
 
+  setThrottle(value) { this.physics.setThrottle(value); }
+
+  applySettings() {
+    if (this.state !== STATE.IDLE) {
+      this.hud.logEvent('SETTINGS LOCKED DURING FLIGHT', 'warn');
+      return;
+    }
+
+    const engineCount = document.getElementById('set-engine-count')?.value;
+    const payloadMass = document.getElementById('set-payload-mass')?.value;
+    const orbitTargetKm = document.getElementById('set-target-alt')?.value;
+
+    this.physics.applySettings({
+      engineCount,
+      payloadMass,
+      orbitTargetAltitude: Number(orbitTargetKm) * 1000,
+    });
+    this.hud.logEvent(`MISSION SETTINGS APPLIED · ${engineCount} ENGINES · ${payloadMass} KG`, 'ok');
+  }
+
   reset() {
     this.state       = STATE.IDLE;
     this.missionTime = 0;
     this._countdown  = 10;
     this._maxQLogged  = false;
     this._starsLogged = false;
+    this._orbitTargetLogged = false;
+    this._lastCountdownTick = 10;
 
     this.physics.reset();
     this.rocket.reset();
@@ -95,6 +123,7 @@ export class Game {
     this.launchpad.resetEffects();
     this.camera.setView('PAD');
     this.hud.reset();
+    this.audio.reset();
 
     const overlay = document.getElementById('countdown-overlay');
     overlay.classList.remove('vis');
@@ -105,15 +134,19 @@ export class Game {
 
   // ── Internal state transitions ────────────────────────────────────────────
   _beginCountdown() {
+    this.audio.resume();
     this.state      = STATE.COUNTDOWN;
     this._countdown = 10;
+    this._lastCountdownTick = 10;
     document.getElementById('btn-launch').textContent = 'ABORT';
     this.hud.logEvent('LAUNCH SEQUENCE INITIATED', 'ok');
     this.hud.logEvent('TERMINAL COUNT: T-10', 'ok');
+    this.hud.showTip('countdown');
   }
 
   _abort() {
     this.hud.logEvent('LAUNCH ABORT COMMANDED', 'err');
+    this.audio.beep(220, 0.25);
     this.reset();
   }
 
@@ -122,6 +155,8 @@ export class Game {
     this.physics.ignite();
     this.rocket.igniteEngines();
     this.launchpad.triggerWaterDeluge();
+    this.launchpad.releaseHoldDownArms();
+    this.audio.startEngine();
     this.camera.setView('LAUNCH');
     this.hud.logEvent('MAIN ENGINE START', 'ok');
     this.hud.logEvent('LIFTOFF! WE HAVE LIFTOFF!', 'ok');
@@ -134,14 +169,18 @@ export class Game {
     this.physics.cutEngines();
     this.physics.performStaging(); // advances physics stage to 2
     this.rocket.performStaging();
+    this.audio.stopEngine();
+    this.audio.stageBang();
     this.hud.logEvent('MECO — MAIN ENGINE CUTOFF', 'ok');
     this.hud.logEvent('STAGE 1 SEPARATION', 'ok');
+    this.hud.showTip('staging');
   }
 
   _stage2Ignition() {
     this.state = STATE.FLIGHT;
     this.physics.igniteStage2();
     this.rocket.igniteStage2();
+    this.audio.startEngine();
     this.hud.logEvent('MVac ENGINE START', 'ok');
   }
 
@@ -204,6 +243,7 @@ export class Game {
     this.world.update(dt, physState.altitude);
     this.camera.update(dt, physState);
     this.hud.update(dt, physState, this.state, this.missionTime);
+    this.audio.updateEngine(physState.throttle, physState.engineRunning);
     this.sceneMgr.updateAtmosphere(physState.altitude);
   }
 
@@ -218,6 +258,10 @@ export class Game {
       overlay.textContent = tick;
       overlay.classList.add('vis');
       display.textContent = `T- 00:00:${String(tick).padStart(2, '0')}`;
+      if (tick !== this._lastCountdownTick) {
+        this.audio.beep(tick <= 3 ? 1180 : 820, tick <= 3 ? 0.12 : 0.06);
+        this._lastCountdownTick = tick;
+      }
     } else {
       overlay.textContent = 'IGNITION';
       display.textContent = 'IGNITION';
@@ -237,11 +281,19 @@ export class Game {
     if (!this._maxQLogged && s.altitude > 8_000 && s.dynamicPressure > 40_000) {
       this.hud.logEvent('MAX-Q — MAXIMUM DYNAMIC PRESSURE', 'warn');
       this._maxQLogged = true;
+      this.hud.showTip('maxq');
     }
 
     if (!this._starsLogged && s.altitude > 80_000) {
       this.hud.logEvent('ENTERING UPPER ATMOSPHERE', 'ok');
       this._starsLogged = true;
+      this.hud.showTip('upper-atmosphere');
+    }
+
+    if (!this._orbitTargetLogged && s.altitude >= s.orbitTargetAltitude) {
+      this.hud.logEvent('TARGET ALTITUDE REACHED', 'ok');
+      this._orbitTargetLogged = true;
+      this.hud.showTip('target');
     }
 
     // Stage 1 burnout
@@ -254,6 +306,22 @@ export class Game {
       this.state = STATE.COASTING;
       this.hud.logEvent('SECO — SECOND ENGINE CUTOFF', 'ok');
       this.rocket.cutEngines();
+      this.audio.stopEngine();
     }
+  }
+
+  _setupControls() {
+    const mobileThrottle = document.getElementById('touch-throttle');
+    mobileThrottle?.addEventListener('input', e => {
+      this.setThrottle(Number(e.target.value) / 100);
+    });
+
+    const settingsToggle = document.getElementById('btn-settings');
+    const settingsPanel = document.getElementById('settings-panel');
+    settingsToggle?.addEventListener('click', () => {
+      settingsPanel?.classList.toggle('open');
+    });
+
+    document.getElementById('btn-apply-settings')?.addEventListener('click', () => this.applySettings());
   }
 }

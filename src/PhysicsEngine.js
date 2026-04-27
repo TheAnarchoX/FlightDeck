@@ -5,10 +5,15 @@ const RE = CONFIG.EARTH_RADIUS;
 const P0 = CONFIG.ATM_DENSITY_SL;
 const H0 = CONFIG.ATM_SCALE_HEIGHT;
 
-// ── Physics engine (1-D vertical ascent, RK4 integration) ────────────────────
+// ── Physics engine (2-D gravity-turn ascent, RK4 vertical integration) ────────
 export class PhysicsEngine {
   constructor() {
     this.stage = 1;
+    this._settings = {
+      engineCount: 9,
+      payloadMass: CONFIG.ROCKET.PAYLOAD_MASS,
+      orbitTargetAltitude: 200_000,
+    };
     this.reset();
   }
 
@@ -18,7 +23,11 @@ export class PhysicsEngine {
     // State vector
     this._altitude = 0;   // m
     this._velocity = 0;   // m/s
+    this._downrange = 0;  // m
+    this._horizontalVelocity = 0; // m/s
     this._accel    = 0;   // m/s²
+    this._horizontalAccel = 0; // m/s²
+    this._pitchAngle = 0; // radians from vertical
 
     // Propellant bookkeeping
     this._s1Fuel = CONFIG.ROCKET.STAGE1.FUEL_MASS;
@@ -54,6 +63,19 @@ export class PhysicsEngine {
     this._throttle = Math.max(0, Math.min(1, this._throttle + delta));
   }
 
+  setThrottle(value) {
+    this._throttle = Math.max(0, Math.min(1, value));
+  }
+
+  applySettings(settings) {
+    this._settings = {
+      ...this._settings,
+      engineCount: Math.max(1, Math.min(9, Number(settings.engineCount) || this._settings.engineCount)),
+      payloadMass: Math.max(1_000, Math.min(50_000, Number(settings.payloadMass) || this._settings.payloadMass)),
+      orbitTargetAltitude: Math.max(100_000, Math.min(500_000, Number(settings.orbitTargetAltitude) || this._settings.orbitTargetAltitude)),
+    };
+  }
+
   // ── Integrate one timestep ────────────────────────────────────────────────
   update(dt) {
     // RK4 for velocity & altitude
@@ -71,12 +93,21 @@ export class PhysicsEngine {
 
     if (this._altitude < 0) { this._altitude = 0; this._velocity = Math.max(0, this._velocity); }
 
+    // Horizontal component for the gravity turn.
+    const rho = this._rho(this._altitude);
+    const mass = this._totalMass();
+    this._pitchAngle = this._pitchForAltitude(this._altitude);
+    const hDrag = this._drag(rho, this._horizontalVelocity);
+    this._horizontalAccel = (this._thrust(rho) * Math.sin(this._pitchAngle) - hDrag) / mass;
+    this._horizontalVelocity += this._horizontalAccel * dt;
+    this._downrange += this._horizontalVelocity * dt;
+
     // Consume fuel
     this._burnFuel(dt);
 
     // Update cached dynamics
-    const rho             = this._rho(this._altitude);
-    this._dynPressure     = 0.5 * rho * this._velocity * this._velocity;
+    const speed           = Math.hypot(this._velocity, this._horizontalVelocity);
+    this._dynPressure     = 0.5 * rho * speed * speed;
     this._maxQ            = Math.max(this._maxQ, this._dynPressure);
   }
 
@@ -85,7 +116,7 @@ export class PhysicsEngine {
     const mass   = this._totalMass();
     const g      = G0 * Math.pow(RE / (RE + Math.max(0, alt)), 2);
     const rho    = this._rho(alt);
-    const thrust = this._thrust(rho);
+    const thrust = this._thrust(rho) * Math.cos(this._pitchForAltitude(alt));
     const drag   = this._drag(rho, vel);
 
     return (thrust - mass * g - drag) / mass;
@@ -98,9 +129,17 @@ export class PhysicsEngine {
   _thrust(rho) {
     if (!this._running || this._throttle <= 0) return 0;
     const cfg  = this.stage === 1 ? CONFIG.ROCKET.STAGE1 : CONFIG.ROCKET.STAGE2;
+    const engineRatio = this.stage === 1 ? this._settings.engineCount / 9 : 1;
     // Slight vacuum bonus
     const vacBonus = 1 + (1 - Math.min(1, rho / P0)) * 0.09;
-    return this._throttle * cfg.MAX_THRUST * vacBonus;
+    return this._throttle * cfg.MAX_THRUST * vacBonus * engineRatio;
+  }
+
+  _pitchForAltitude(alt) {
+    if (alt < 500) return 0;
+    const t = Math.min(1, (alt - 500) / 90_000);
+    const smooth = t * t * (3 - 2 * t);
+    return smooth * THREE_QUARTER_RAD;
   }
 
   _drag(rho, vel) {
@@ -114,7 +153,8 @@ export class PhysicsEngine {
   _burnFuel(dt) {
     if (!this._running || this._throttle <= 0) return;
     const cfg  = this.stage === 1 ? CONFIG.ROCKET.STAGE1 : CONFIG.ROCKET.STAGE2;
-    const flow = (cfg.FUEL_MASS / cfg.BURN_TIME) * this._throttle;
+    const engineRatio = this.stage === 1 ? this._settings.engineCount / 9 : 1;
+    const flow = (cfg.FUEL_MASS / cfg.BURN_TIME) * this._throttle * engineRatio;
 
     if (this.stage === 1) {
       this._s1Fuel = Math.max(0, this._s1Fuel - flow * dt);
@@ -130,9 +170,9 @@ export class PhysicsEngine {
     if (this.stage === 1) {
       return R.STAGE1.DRY_MASS + this._s1Fuel
            + R.STAGE2.DRY_MASS + this._s2Fuel
-           + R.PAYLOAD_MASS;
+           + this._settings.payloadMass;
     }
-    return R.STAGE2.DRY_MASS + this._s2Fuel + R.PAYLOAD_MASS;
+    return R.STAGE2.DRY_MASS + this._s2Fuel + this._settings.payloadMass;
   }
 
   // ── Stage transition ──────────────────────────────────────────────────────
@@ -147,11 +187,16 @@ export class PhysicsEngine {
     const cfg      = this.stage === 1 ? CONFIG.ROCKET.STAGE1 : CONFIG.ROCKET.STAGE2;
     const fuel     = this.stage === 1 ? this._s1Fuel : this._s2Fuel;
     const fuelRatio = fuel / cfg.FUEL_MASS;
+    const speed = Math.hypot(this._velocity, this._horizontalVelocity);
 
     return {
       altitude:       this._altitude,
-      velocity:       this._velocity,
+      downrange:      this._downrange,
+      velocity:       speed,
+      verticalVelocity: this._velocity,
+      horizontalVelocity: this._horizontalVelocity,
       acceleration:   this._accel,
+      horizontalAcceleration: this._horizontalAccel,
       gForce:         1 + this._accel / G0,
       mass:           this._totalMass(),
       throttle:       this._throttle,
@@ -161,6 +206,10 @@ export class PhysicsEngine {
       engineRunning:  this._running,
       dynamicPressure: this._dynPressure,
       maxQ:           this._maxQ,
+      pitchAngle:     this._pitchAngle,
+      orbitTargetAltitude: this._settings.orbitTargetAltitude,
     };
   }
 }
+
+const THREE_QUARTER_RAD = Math.PI * 0.42;
