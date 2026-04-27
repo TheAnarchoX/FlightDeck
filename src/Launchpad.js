@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-// Steam originates just aft of the mount and spreads through the trench, in meters.
+// Steam starts 6 m aft of the rocket base and spreads across a 14 m trench radius.
 const DELUGE_Z_CENTER_OFFSET = -6;
 const DELUGE_Z_RADIUS = 14;
 

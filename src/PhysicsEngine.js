@@ -139,7 +139,7 @@ export class PhysicsEngine {
     if (alt < 500) return 0;
     const t = Math.min(1, (alt - 500) / 90_000);
     const smooth = t * t * (3 - 2 * t);
-    return smooth * THREE_QUARTER_RAD;
+    return smooth * GRAVITY_TURN_MAX_ANGLE_RAD;
   }
 
   _drag(rho, vel) {
@@ -212,4 +212,4 @@ export class PhysicsEngine {
   }
 }
 
-const THREE_QUARTER_RAD = Math.PI * 0.42;
+const GRAVITY_TURN_MAX_ANGLE_RAD = Math.PI * 0.42;
