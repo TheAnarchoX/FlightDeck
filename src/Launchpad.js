@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+// Steam originates just aft of the mount and spreads through the trench.
 const DELUGE_Z_CENTER_OFFSET = -6;
 const DELUGE_Z_RADIUS = 14;
 
